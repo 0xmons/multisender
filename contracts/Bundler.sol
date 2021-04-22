@@ -14,6 +14,13 @@ contract Bundler is ERC721Holder, ERC1155Holder, ReentrancyGuard {
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
+  event ERC20Deposited(address tokenAddress, uint256 tokenAmount, address nftAddress, uint256 nftId);
+  event ERC20Withdrawn(address tokenAddress, uint256 tokenAmount, address nftAddress, uint256 nftId);
+  event ERC721Deposited(address tokenAddress, uint256 tokenId, address nftAddress, uint256 nftId);
+  event ERC721Withdrawn(address tokenAddress, uint256 tokenId, address nftAddress, uint256 nftId);
+  event ERC1155Deposited(address tokenAddress, uint256 tokenId, uint256 tokenAmount, address nftAddress, uint256 nftId);
+  event ERC1155Withdrawn(address tokenAddress, uint256 tokenId, uint256 tokenAmount, address nftAddress, uint256 nftId);
+
   // Mapping of ERC721 address -> ID -> tokenAddress -> reward amounts
   mapping(address => mapping(uint256 => mapping(address => uint256))) public ERC20Locked;
 
@@ -26,16 +33,19 @@ contract Bundler is ERC721Holder, ERC1155Holder, ReentrancyGuard {
   function depositERC20(address tokenAddress, uint256 tokenAmount, address nftAddress, uint256 nftId) public nonReentrant {
     ERC20Locked[nftAddress][nftId][tokenAddress] = ERC20Locked[nftAddress][nftId][tokenAddress].add(tokenAmount);
     IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), tokenAmount);
+    emit ERC20Deposited(tokenAddress, tokenAmount, nftAddress, nftId);
   }
 
   function depositERC721(address tokenAddress, uint256 tokenId, address nftAddress, uint256 nftId) public nonReentrant {
     ERC721Locked[nftAddress][nftId][tokenAddress][tokenId] = true;
     IERC721(tokenAddress).safeTransferFrom(msg.sender, address(this), tokenId);
+    emit ERC721Deposited(tokenAddress, tokenId, nftAddress, nftId);
   }
 
   function depositERC1155(address tokenAddress, uint256 tokenId, uint256 tokenAmount, address nftAddress, uint256 nftId) public nonReentrant {
     ERC1155Locked[nftAddress][nftId][tokenAddress][tokenId] = ERC1155Locked[nftAddress][nftId][tokenAddress][tokenId].add(tokenAmount);
     IERC1155(tokenAddress).safeTransferFrom(msg.sender, address(this), tokenId, tokenAmount, "");
+    emit ERC1155Deposited(tokenAddress, tokenId, tokenAmount, nftAddress, nftId);
   }
 
   // TODO: a batch deposit for ERC1155?
@@ -53,17 +63,21 @@ contract Bundler is ERC721Holder, ERC1155Holder, ReentrancyGuard {
     isApprovedOrOwner(nftAddress, nftId);
     ERC20Locked[nftAddress][nftId][tokenAddress] = ERC20Locked[nftAddress][nftId][tokenAddress].sub(tokenAmount);
     IERC20(tokenAddress).safeTransfer(msg.sender, tokenAmount);
+    emit ERC20Withdrawn(tokenAddress, tokenAmount, nftAddress, nftId);
   }
 
   function withdrawERC721(address tokenAddress, uint256 tokenId, address nftAddress, uint256 nftId) public nonReentrant {
     isApprovedOrOwner(nftAddress, nftId);
+    require(ERC721Locked[nftAddress][nftId][tokenAddress][tokenId], "Not bundled to this NFT");
     IERC721(tokenAddress).safeTransferFrom(address(this), msg.sender, tokenId);
     delete ERC721Locked[nftAddress][nftId][tokenAddress][tokenId];
+    emit ERC721Withdrawn(tokenAddress, tokenId, nftAddress, nftId);
   }
 
   function withdrawERC1155(address tokenAddress, uint256 tokenId, uint256 tokenAmount, address nftAddress, uint256 nftId) public nonReentrant {
     isApprovedOrOwner(nftAddress, nftId);
     ERC1155Locked[nftAddress][nftId][tokenAddress][tokenId] = ERC1155Locked[nftAddress][nftId][tokenAddress][tokenId].sub(tokenAmount);
     IERC1155(tokenAddress).safeTransferFrom(address(this), msg.sender, tokenId, tokenAmount, "");
+    emit ERC1155Withdrawn(tokenAddress, tokenId, tokenAmount, nftAddress, nftId);
   }
 }
